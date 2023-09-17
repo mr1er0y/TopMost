@@ -2,18 +2,21 @@
 This script is partially based on https://github.com/dallascard/scholar.
 '''
 
+import json
 import os
 import re
 import string
-import gensim.downloader
 from collections import Counter
+
+import gensim.downloader
 import numpy as np
+import pandas as pd
 import scipy.sparse
-from tqdm import tqdm
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 from topmost.data import file_utils
-
 
 # compile some regexes
 punct_chars = list(set(string.punctuation) - set("'"))
@@ -131,7 +134,9 @@ def make_word_embeddings(vocab):
 
 
 class Preprocessing:
-    def __init__(self, test_sample_size=None, test_p=0.2, stopwords="snowball", min_doc_count=0, max_doc_freq=1.0, keep_num=False, keep_alphanum=False, strip_html=False, no_lower=False, min_length=3, min_term=1, vocab_size=None, seed=42):
+    def __init__(self, test_sample_size=None, test_p=0.2, stopwords="snowball", min_doc_count=0, max_doc_freq=1.0,
+                 keep_num=False, keep_alphanum=False, strip_html=False, no_lower=False, min_length=3, min_term=1,
+                 vocab_size=None, seed=42):
         """
         Args:
             test_sample_size:
@@ -189,8 +194,10 @@ class Preprocessing:
     def parse_dataset(self, dataset_dir, label_name):
         np.random.seed(self.seed)
 
-        train_items = file_utils.read_jsonlist(os.path.join(dataset_dir, 'train.jsonlist'))
-        test_items = file_utils.read_jsonlist(os.path.join(dataset_dir, 'test.jsonlist'))
+        with open(os.path.join(dataset_dir, 'train.jsonlist'), 'r') as json_file:
+            train_items = json.load(json_file)
+        with open(os.path.join(dataset_dir, 'test.jsonlist'), 'r') as json_file:
+            test_items = json.load(json_file)
 
         n_train = len(train_items)
         n_test = len(test_items)
@@ -223,7 +230,8 @@ class Preprocessing:
 
         for i, item in enumerate(tqdm(all_items, desc="===>parse texts")):
             text = item['text']
-            label = label2id[item[label_name]]
+            if label_name is not None:
+                label = label2id[item[label_name]]
 
             # tokens = tokenize(text, strip_html=self.strip_html, lower=(not self.no_lower), keep_numbers=self.keep_num, keep_alphanum=self.keep_alphanum, min_length=self.min_length, stopwords=self.stopword_set)
             tokens = self.tokenizer.tokenize(text)
@@ -233,14 +241,17 @@ class Preprocessing:
             # train_texts and test_texts have been parsed.
             if i < n_train:
                 train_texts.append(parsed_text)
-                train_labels.append(label)
+                if label_name is not None:
+                    train_labels.append(label)
             else:
                 test_texts.append(parsed_text)
-                test_labels.append(label)
+                if label_name is not None:
+                    test_labels.append(label)
 
         words, doc_counts = zip(*doc_counts_counter.most_common())
         doc_freqs = np.array(doc_counts) / float(n_items)
-        vocab = [word for i, word in enumerate(words) if doc_counts[i] >= self.min_doc_count and doc_freqs[i] <= self.max_doc_freq]
+        vocab = [word for i, word in enumerate(words) if
+                 doc_counts[i] >= self.min_doc_count and doc_freqs[i] <= self.max_doc_freq]
 
         # filter vocabulary
         if (self.vocab_size is not None) and (len(vocab) > self.vocab_size):
@@ -280,8 +291,9 @@ class Preprocessing:
 
         self.train_bow_matrix = train_bow_matrix[train_idx]
         self.test_bow_matrix = test_bow_matrix[test_idx]
-        self.train_labels = np.asarray(train_labels)[train_idx]
-        self.test_labels = np.asarray(test_labels)[test_idx]
+        if label_name is not None:
+            self.train_labels = np.asarray(train_labels)[train_idx]
+            self.test_labels = np.asarray(test_labels)[test_idx]
         self.vocab = vocab
 
         self.train_texts, _ = self.parse(np.asarray(train_texts)[train_idx].tolist(), vocab)
@@ -309,3 +321,35 @@ class Preprocessing:
         np.savetxt(f"{output_dir}/test_labels.txt", self.test_labels, fmt='%i')
         file_utils.save_text(self.vocab, f"{output_dir}/vocab.txt")
 
+
+def csv_to_json(file_csv: str, dir_name: str = "./datasets/project"):
+    df = pd.read_csv(file_csv)
+    df_train, df_test = train_test_split(df, test_size=0.3)
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+    # Convert the DataFrame to a list of JSON objects
+    json_train = df_train.to_json(orient='records')
+    json_test = df_test.to_json(orient='records')
+
+    file_name_train = dir_name + '/train.jsonlist'
+    file_name_test = dir_name + '/test.jsonlist'
+
+    with open(file_name_train, 'w', encoding='utf-8') as json_file:
+        json_file.write(json_train)
+
+    with open(file_name_test, 'w', encoding='utf-8') as json_file:
+        json_file.write(json_test)
+
+
+if __name__ == "__main__":
+    device = "cpu"  # "cuda"
+
+    dataset_dir = "./datasets/project"
+
+    # download stopwords
+    # download_dataset('stopwords', cache_path='./datasets')
+
+    # preprocess raw data
+    preprocessing = Preprocessing(vocab_size=5000)
+
+    preprocessing.parse_dataset(dataset_dir='./datasets/project', label_name=None)
