@@ -2,5 +2,10 @@ torch>=1.17
 torchvision>=0.14.1
 gensim>=4.2.0
 scikit-learn>=0.24.2
-tqdm
+tqdm~=4.66.1
 python-Levenshtein
+
+numpy~=1.26.0
+scipy~=1.11.2
+pandas~=2.1.0
+setuptools~=68.2.2
