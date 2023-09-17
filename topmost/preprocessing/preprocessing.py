@@ -10,10 +10,8 @@ from collections import Counter
 
 import gensim.downloader
 import numpy as np
-import pandas as pd
 import scipy.sparse
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from topmost.data import file_utils
@@ -317,39 +315,8 @@ class Preprocessing:
         file_utils.save_text(self.train_texts, f"{output_dir}/train_texts.txt")
         file_utils.save_text(self.test_texts, f"{output_dir}/test_texts.txt")
 
-        np.savetxt(f"{output_dir}/train_labels.txt", self.train_labels, fmt='%i')
-        np.savetxt(f"{output_dir}/test_labels.txt", self.test_labels, fmt='%i')
+        # np.savetxt(f"{output_dir}/train_labels.txt", self.train_labels, fmt='%i')
+        # np.savetxt(f"{output_dir}/test_labels.txt", self.test_labels, fmt='%i')
         file_utils.save_text(self.vocab, f"{output_dir}/vocab.txt")
 
 
-def csv_to_json(file_csv: str, dir_name: str = "./datasets/project"):
-    df = pd.read_csv(file_csv)
-    df_train, df_test = train_test_split(df, test_size=0.3)
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-    # Convert the DataFrame to a list of JSON objects
-    json_train = df_train.to_json(orient='records')
-    json_test = df_test.to_json(orient='records')
-
-    file_name_train = dir_name + '/train.jsonlist'
-    file_name_test = dir_name + '/test.jsonlist'
-
-    with open(file_name_train, 'w', encoding='utf-8') as json_file:
-        json_file.write(json_train)
-
-    with open(file_name_test, 'w', encoding='utf-8') as json_file:
-        json_file.write(json_test)
-
-
-if __name__ == "__main__":
-    device = "cpu"  # "cuda"
-
-    dataset_dir = "./datasets/project"
-
-    # download stopwords
-    # download_dataset('stopwords', cache_path='./datasets')
-
-    # preprocess raw data
-    preprocessing = Preprocessing(vocab_size=5000)
-
-    preprocessing.parse_dataset(dataset_dir='./datasets/project', label_name=None)
